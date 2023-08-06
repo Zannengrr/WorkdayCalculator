@@ -1,6 +1,4 @@
-﻿using System.Data;
-
-namespace WorkdayCalculator.Interfaces
+﻿namespace WorkdayCalculator.Interfaces
 {
     public interface IWorkdayCalendar
     {

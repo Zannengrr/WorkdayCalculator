@@ -18,24 +18,27 @@ namespace WorkdayCalculator.Services
 
         public DateTime GetWorkdayIncrement(DateTime startDate, decimal incrementInWorkdays)
         {
+            if(incrementInWorkdays == 0 ) return startDate;
+
             int sign = Math.Sign(incrementInWorkdays);
             int days = (int)Math.Abs(incrementInWorkdays);
-            decimal restDecimal = Math.Abs(incrementInWorkdays - Math.Truncate(incrementInWorkdays));
-            decimal restHours = workingHours.Hours * restDecimal;
-            decimal restMinutes = Math.Floor((restHours - Math.Truncate(restHours)) * 60);
+            decimal decimalNumber = Math.Abs(incrementInWorkdays - Math.Truncate(incrementInWorkdays));
+            decimal remainingWorkHours = workingHours.Hours * decimalNumber;
+            decimal remainingWorkMinutes = Math.Floor((remainingWorkHours - Math.Truncate(remainingWorkHours)) * 60);
 
             DateTime currentDate = startDate.Date;
 
+            //can be extracted into a method instead of repeating logic with differenet parameters
             if (sign == 1)
             {
                 if (startDate.Hour < endWorkingHours.Hours)
                 {
-                    int hoursInWorkDayLeft = startDate.Hour > startWorkingHours.Hours ? endWorkingHours.Hours - startDate.Hour : workingHours.Hours;
-                    if (hoursInWorkDayLeft < restHours)
+                    int hoursInWorkDayLeft = startDate.Hour > startWorkingHours.Hours ? Math.Abs(endWorkingHours.Hours - startDate.Hour) : workingHours.Hours;
+                    if (hoursInWorkDayLeft < remainingWorkHours)
                     {
-                        restHours = Math.Abs(restHours - hoursInWorkDayLeft) + 24;
+                        remainingWorkHours = 24 - Math.Abs(remainingWorkHours - hoursInWorkDayLeft);
                     }
-                    if(startDate.Hour >= startWorkingHours.Hours) restMinutes += startDate.Minute;
+                    if(startDate.Hour >= startWorkingHours.Hours) remainingWorkMinutes += startDate.Minute;
 
                 }
                 else
@@ -47,12 +50,12 @@ namespace WorkdayCalculator.Services
             {
                 if (startDate.Hour > startWorkingHours.Hours)
                 {
-                    int hoursInWorkDayLeft = startDate.Hour < endWorkingHours.Hours ? startWorkingHours.Hours - startDate.Hour : workingHours.Hours;
-                    if (hoursInWorkDayLeft < restHours)
+                    int hoursInWorkDayLeft = startDate.Hour < endWorkingHours.Hours ? Math.Abs(startWorkingHours.Hours - startDate.Hour) : workingHours.Hours;
+                    if (hoursInWorkDayLeft < remainingWorkHours)
                     {
-                        restHours = Math.Abs(restHours - hoursInWorkDayLeft) + 24;
+                        remainingWorkHours = 24 + Math.Abs(remainingWorkHours - hoursInWorkDayLeft);
                     }
-                    if(startDate.Hour <= endWorkingHours.Hours) restMinutes = 60 - restMinutes;
+                    if (startDate.Hour < endWorkingHours.Hours) remainingWorkMinutes -= startDate.Minute;
                 }
                 else
                 {
@@ -67,8 +70,11 @@ namespace WorkdayCalculator.Services
                 days--;
             }
 
-            if(sign == 1) currentDate += new TimeSpan((int)restHours,(int)restMinutes, 0) + startWorkingHours;
-            else currentDate += new TimeSpan(sign*(int)restHours, sign*(int)restMinutes, 0) + endWorkingHours;
+            if (sign == 1) currentDate += new TimeSpan((int)remainingWorkHours, (int)remainingWorkMinutes, 0) + startWorkingHours;
+            else
+            {
+                currentDate -= new TimeSpan((int)remainingWorkHours, (int)remainingWorkMinutes, 0) - endWorkingHours;
+            }
 
             return currentDate;
         }
@@ -80,11 +86,22 @@ namespace WorkdayCalculator.Services
 
         public void SetRecurringHoliday(int month, int day)
         {
+            //validate inputs
+            if(!(month is > 0 and <= 12)) throw new Exception("Months must be within 0 - 12");
+            if (day < 1 || day > DateTime.DaysInMonth(2003, month)) throw new Exception($"Days must be within month days 1 - {DateTime.DaysInMonth(2003, month)}");
+
             recurringHolidays.Add((month, day));
         }
 
         public void SetWorkdayStartAndStop(int startHours, int startMinutes, int stopHours, int stopMinutes)
         {
+            if (!(startHours is >= 0 and < 24 && stopHours is >= 0 and < 24)) 
+                throw new Exception($"Hours must be within 0 - 24 - Your input: startHours = {startHours}\n endHours = {stopHours}");
+            if (!(startMinutes is >= 0 and < 60 && stopMinutes is >= 0 and < 60)) 
+                throw new Exception($"Minutes must be in range 0 - 59 Your input: startMinutes = {startMinutes}\n stopMinutes = {stopMinutes}");
+
+            //maybe add validation that stop hours must be greater then end hours, but that is not specified
+
             startWorkingHours = new TimeSpan(startHours, startMinutes, 0);
             endWorkingHours = new TimeSpan(stopHours, stopMinutes, 0);
             workingHours = endWorkingHours - startWorkingHours;
@@ -108,15 +125,13 @@ namespace WorkdayCalculator.Services
 
             if (holidays.Contains(date))
             {
-                Console.WriteLine("Holdiays found");
                 return false;
             }
 
-            foreach (var holiday in recurringHolidays)
+            foreach (var (month, day) in recurringHolidays)
             {
-                if (date.Month == holiday.month && date.Day == holiday.day)
+                if (date.Month == month && date.Day == day)
                 {
-                    Console.WriteLine("Holdiays MATHC FOUND");
                     return false;
                 }
             }
